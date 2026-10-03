@@ -18,7 +18,7 @@ numpy = ["numpy"]
 test = ["pytest", "numpy"]
 
 [project.urls]
-Repository = "https://git.johome.net/proj/polars-psf"
+Repository = "https://git.johome.net/proj/polars-waveform"
 
 [tool.hatch.build.targets.wheel]
 packages = ["polars_waveform"]

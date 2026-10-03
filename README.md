@@ -2,7 +2,7 @@
 
 Waveforms and curve families on [Polars](https://pola.rs), with circuit-style measurements:
 bandwidth, crossings, rise time, phase margin, ... Works on any Polars data: simulation results
-(through [polars-psf](../README.md) for Cadence® Spectre® PSF files), lab measurements in Parquet,
+(through [polars-psf](https://git.johome.net/proj/polars-psf) for Cadence® Spectre® PSF files), lab measurements in Parquet,
 or a DataFrame you built yourself. Pure Python; depends only on `polars`.
 
 polars-waveform is an independent community project, not affiliated with or endorsed by the Polars
@@ -83,6 +83,14 @@ Complex data is a `Struct{re, im}` column; arithmetic and `db20()`/`phase()` han
 `pw.ResultSource` is the shape shared by result objects that hand out waveforms: `leaves`,
 `names`, `v(signal, **params)` and `scan()`. `polars_psf.Result` implements it for simulation
 results; a lab-data handler can implement it too, so analysis code runs on both.
+
+## Development
+
+```sh
+pip install -e ".[test]"
+pytest tests
+ruff check .
+```
 
 ## License
 
