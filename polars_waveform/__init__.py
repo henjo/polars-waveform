@@ -16,8 +16,10 @@ operating points), so one Waveform can hold a whole family of curves::
 Measurements follow OCEAN semantics (``xmax`` is the x at the largest y; ``cross`` counts edges
 from 1); the OCEAN and pycircuit spellings (``dB20``, ``unityGainFreq``, ``IIP3``, ...) are aliases.
 Complex data is ``Struct{re, im}``; :mod:`.cx` registers ``pl.col(...).cx`` for it.
-:func:`from_nested` builds families from nested channel columns, and :class:`ResultSource` is the
-shape shared by result objects (``polars_psf.Result`` implements it).
+:func:`from_nested` builds families from nested channel columns, :meth:`Waveform.from_arrays`
+from numpy grids, and :class:`ResultSource` is the shape shared by result objects
+(``polars_psf.Result`` implements it). :class:`WaveformBase` is the contract other waveform
+kinds implement (for example symbolic waveforms on numpy object arrays).
 
 Modules: :mod:`.waveform` (the class), :mod:`.functions` (calculator functions), :mod:`.cx`
 (complex helpers), :mod:`.nested`, :mod:`.source`.
@@ -27,13 +29,14 @@ from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _version
 
 from . import cx
+from .base import WaveformBase
 from .functions import *  # noqa: F403
 from .functions import __all__ as _functions
 from .nested import from_nested
 from .source import ResultSource
 from .waveform import Waveform, either, falling, raising
 
-__all__ = ["ResultSource", "Waveform", "cx", "either", "falling", "from_nested", "raising", *_functions]
+__all__ = ["ResultSource", "Waveform", "WaveformBase", "cx", "either", "falling", "from_nested", "raising", *_functions]
 
 try:
     __version__ = _version("polars-waveform")

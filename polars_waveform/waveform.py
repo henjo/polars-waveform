@@ -7,6 +7,7 @@ import math
 import polars as pl
 
 from . import cx
+from .base import WaveformBase
 
 __all__ = ["Waveform", "either", "falling", "raising"]
 
@@ -41,6 +42,21 @@ def _steps(z: pl.Series) -> pl.Series:
     return (z >= 0).cast(pl.Int8).diff()
 
 
+def _from_numpy(v):
+    """numpy operands as Polars/Python values: arrays become Series (complex: Struct{re, im})."""
+    if type(v).__module__ != "numpy":
+        return v
+    import numpy as np
+
+    if isinstance(v, np.generic):
+        return v.item()
+    if isinstance(v, np.ndarray):
+        if np.iscomplexobj(v):
+            return pl.DataFrame({"re": v.real, "im": v.imag}).to_struct("rhs")
+        return pl.Series("rhs", v)
+    return v
+
+
 def _dt(t) -> float:
     """``t2 - t1`` of a transition tuple."""
     return t[1] - t[0]
@@ -52,7 +68,7 @@ def _complex_series(name: str, values) -> pl.Series:
     return pl.Series(name, values, dtype=pl.Float64)
 
 
-class Waveform:
+class Waveform(WaveformBase):
     """A value column over one or more index columns, backed by a lazy ``pl.LazyFrame``.
 
     >>> import polars as pl
@@ -136,6 +152,119 @@ class Waveform:
             index=[xname],
             units={xname: xunit, yname: yunit},
         )
+
+    @classmethod
+    def from_arrays(cls, x, y, xlabels=None, ylabel=None, xunits=None, yunit=None) -> Waveform:
+        """A waveform from numpy arrays, in pycircuit's layout.
+
+        Regular grid: ``x`` is one 1-D array per axis (a single array for one axis) and ``y`` has
+        shape ``(len(x0), len(x1), ...)``. The last axis is the sweep; the others become group
+        columns, so a 2-D grid is a family with one curve per ``x0`` value::
+
+            Waveform.from_arrays([temps, freqs], gain, xlabels=["temp", "freq"], ylabel="gain")
+
+        Ragged: ``y`` and each ``x`` are object arrays of the same (outer) shape whose elements
+        are per-curve arrays, for sweeps whose length differs between curves.
+
+        Labels default to ``x0, x1, ...`` and ``y``; complex ``y`` becomes ``Struct{re, im}``.
+        """
+        import numpy as np
+
+        if (isinstance(x, np.ndarray) and x.dtype != object) or all(np.ndim(xi) == 0 for xi in x):
+            x = [x]  # a single axis, not a list of axes
+        xs = [np.asarray(xi) if not isinstance(xi, np.ndarray) else xi for xi in x]
+        y = np.asarray(y)
+        names = list(xlabels) if xlabels is not None else [f"x{i}" for i in range(len(xs))]
+        yname = ylabel if ylabel is not None else "y"
+        if len(names) != len(xs):
+            raise ValueError(f"{len(xs)} x arrays but {len(names)} labels")
+        ragged = y.dtype == object and len(xs) > 1 and all(xi.shape == y.shape for xi in xs)
+        if ragged:
+            cols = [np.concatenate([np.asarray(e) for e in xi.ravel()]) for xi in xs]
+            yv = np.concatenate([np.asarray(e) for e in y.ravel()])
+        else:
+            shape = tuple(len(xi) for xi in xs)
+            if y.shape != shape:
+                raise ValueError(f"y has shape {y.shape}, the x arrays give {shape}")
+            cols = [m.ravel() for m in np.meshgrid(*xs, indexing="ij")]
+            yv = y.ravel()
+        data = dict(zip(names, (pl.Series(n, c) for n, c in zip(names, cols, strict=True)), strict=True))
+        if np.iscomplexobj(yv):
+            data[yname] = pl.DataFrame({"re": yv.real, "im": yv.imag}).to_struct(yname)
+        else:
+            data[yname] = pl.Series(yname, yv)
+        units = {}
+        if xunits is not None:
+            units.update(zip(names, xunits, strict=False))
+        if yunit is not None:
+            units[yname] = yunit
+        return cls(pl.DataFrame(data), yname, index=names, units=units)
+
+    def to_arrays(self):
+        """``(xs, y)`` in the layout :meth:`from_arrays` accepts.
+
+        A family on a full grid (every curve has the same sweep, all group combinations present)
+        gives a regular grid: one sorted 1-D array per axis and ``y`` of shape ``(len(x0), ...)``.
+        Otherwise the result is ragged: object arrays with one element per curve. Complex values
+        become ``complex128``.
+        """
+        import numpy as np
+
+        df = self._frame().sort(self._index)
+        if self._complex:
+            yy = df[self._value]
+            y = yy.struct.field("re").to_numpy() + 1j * yy.struct.field("im").to_numpy()
+        else:
+            y = df[self._value].to_numpy()
+        axes = [np.unique(df[c].to_numpy()) for c in self._index]
+        if df.height == math.prod(len(a) for a in axes) and df.select(self._index).is_unique().all():
+            return axes, y.reshape(tuple(len(a) for a in axes))
+        if not self.groups:
+            return [df[self._sample].to_numpy()], y
+        parts = df.with_columns(_y=pl.Series(y)).partition_by(self.groups, maintain_order=True)
+
+        def obj(arrays):
+            out = np.empty(len(arrays), dtype=object)
+            out[:] = arrays
+            return out
+
+        xs = [obj([p[c].to_numpy() for p in parts]) for c in self._index]
+        return xs, obj([p["_y"].to_numpy() for p in parts])
+
+    def numeric(self) -> Waveform:
+        """This waveform (already numeric)."""
+        return self
+
+    # --- numpy ufuncs: np.abs(w), np.log10(w), ndarray + w ... stay Waveforms -------------------
+    def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
+        import numpy as np
+
+        if method != "__call__" or kwargs:
+            return NotImplemented
+        unary = {
+            np.absolute: lambda w: abs(w),
+            np.negative: lambda w: -w,
+            np.positive: lambda w: w,
+            np.conjugate: lambda w: w.conj(),
+            np.log10: lambda w: w.log10(),
+            np.log: lambda w: w.log(),
+            np.exp: lambda w: w.exp(),
+            np.sqrt: lambda w: w.sqrt(),
+        }
+        binary = {
+            np.add: "+", np.subtract: "-", np.multiply: "*", np.true_divide: "/",
+            np.less: "<", np.greater: ">", np.less_equal: "<=", np.greater_equal: ">=",
+        }  # fmt: skip
+        if ufunc in unary and len(inputs) == 1:
+            return unary[ufunc](self)
+        if len(inputs) == 2 and (ufunc in binary or ufunc is np.power):
+            reverse = inputs[1] is self
+            other = inputs[0] if reverse else inputs[1]
+            other = _from_numpy(other)
+            if ufunc is np.power:
+                return other ** self if reverse else self ** other
+            return self._binop(other, binary[ufunc], reverse=reverse)
+        return NotImplemented
 
     # materialization ----------------------------------------------------------------------
     def _frame(self) -> pl.DataFrame:
@@ -356,6 +485,7 @@ class Waveform:
         """Elementwise op, built lazily. Two waveforms must share their index values (only the
         index columns are read to check that)."""
         base = self._lf.select(self._index + [self._value])
+        other = _from_numpy(other)
         if isinstance(other, Waveform):
             self._check_x(other)
             base = pl.concat([base, other._lf.select(pl.col(other._value).alias(_RHS))], how="horizontal", strict=True)
@@ -798,9 +928,16 @@ class Waveform:
         t1 = self._cross1(l1, 0, kind)
         if math.isnan(t1):
             return t1, t1, l1, l2
-        after = Waveform(self._frame().filter(pl.col(self._sample) >= t1), self._value, index=self._index,
-                         sample=self._sample)
-        return t1, after._cross1(l2, 0, kind), l1, l2
+        # the first theta2 crossing at or after t1 (it may lie in the same sample interval)
+        later = [t for t in self._crossings(l2, kind) if t >= t1]
+        return t1, (later[0] if later else float("nan")), l1, l2
+
+    def _crossings(self, level: float, kind: int) -> list[float]:
+        """x of every crossing of ``level`` with edge type ``kind``, interpolated, in order."""
+        z = self.y - level
+        d = _steps(z)
+        edges = {raising: d > 0, falling: d < 0, either: d != 0}[kind]
+        return [self._cross_at(int(k), z) for k in edges.arg_true()]
 
     def rise_time(self, theta1: float = 10.0, theta2: float = 90.0, initial=None, final=None):
         """Time from ``theta1`` % to ``theta2`` % of the transition from ``initial`` to ``final``
