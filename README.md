@@ -2,11 +2,15 @@
 
 Waveforms and curve families on [Polars](https://pola.rs), with circuit-style measurements:
 bandwidth, crossings, rise time, phase margin, ... Works on any Polars data: simulation results
-(through [polars-psf](https://git.johome.net/proj/polars-psf) for Cadence® Spectre® PSF files), lab measurements in Parquet,
+(through [polars-psf](https://github.com/henjo/polars-psf) for Cadence® Spectre® PSF files), lab measurements in Parquet,
 or a DataFrame you built yourself. Pure Python; depends only on `polars`.
 
 polars-waveform is an independent community project, not affiliated with or endorsed by the Polars
 project or by Cadence Design Systems, Inc.
+
+```sh
+pip install polars-waveform          # or: uv add polars-waveform
+```
 
 ## Quick start
 

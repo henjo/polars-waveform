@@ -23,6 +23,9 @@ Modules: :mod:`.waveform` (the class), :mod:`.functions` (calculator functions),
 (complex helpers), :mod:`.nested`, :mod:`.source`.
 """
 
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _version
+
 from . import cx
 from .functions import *  # noqa: F403
 from .functions import __all__ as _functions
@@ -31,3 +34,8 @@ from .source import ResultSource
 from .waveform import Waveform, either, falling, raising
 
 __all__ = ["ResultSource", "Waveform", "cx", "either", "falling", "from_nested", "raising", *_functions]
+
+try:
+    __version__ = _version("polars-waveform")
+except PackageNotFoundError:  # running from a source tree without an install
+    __version__ = "0+unknown"

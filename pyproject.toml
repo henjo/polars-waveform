@@ -10,7 +10,16 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 dependencies = ["polars>=1.40"]  # io plugins, concat(strict=), explode(empty_as_null=); tested 1.40-1.44
-classifiers = ["Programming Language :: Python :: 3", "Topic :: Scientific/Engineering"]
+keywords = ["waveform", "polars", "measurement", "simulation", "ocean", "eda"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)",
+    "Typing :: Typed",
+]
 
 [project.optional-dependencies]
 # Waveform.to_numpy and dft()
@@ -18,7 +27,8 @@ numpy = ["numpy"]
 test = ["pytest", "numpy"]
 
 [project.urls]
-Repository = "https://git.johome.net/proj/polars-waveform"
+Repository = "https://github.com/henjo/polars-waveform"
+Issues = "https://github.com/henjo/polars-waveform/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["polars_waveform"]
