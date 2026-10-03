@@ -160,15 +160,15 @@ def test_plot_delegates_to_polars():
         "v",
         index=["iteration", "t"],
     )
-    spec = w.plot(color="iteration").to_dict()
+    spec = w.plot(backend="altair", color="iteration").to_dict()
     assert spec["mark"]["type"] == "line"
     assert spec["encoding"]["x"]["field"] == "t" and spec["encoding"]["y"]["field"] == "v"
     assert spec["encoding"]["color"]["field"] == "iteration"
-    assert w.plot(mark="point").to_dict()["mark"]["type"] == "point"
-    assert isinstance(w.plot(), alt.Chart)
+    assert w.plot(backend="altair", mark="point").to_dict()["mark"]["type"] == "point"
+    assert isinstance(w.plot(backend="altair"), alt.Chart)
 
     with pytest.raises(ValueError):  # struct/complex values must be reduced first
-        complex_waveform([0.0, 1.0], [1.0 + 0j, 2.0 + 0j]).plot()
+        complex_waveform([0.0, 1.0], [1.0 + 0j, 2.0 + 0j]).plot(backend="altair")
 
 
 def test_bandwidth_low_and_high():

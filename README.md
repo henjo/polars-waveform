@@ -42,6 +42,30 @@ gain - gain.mean()                   # per-curve results broadcast back over the
 Those tables are ordinary Polars DataFrames: sort, filter, join with other measurements, and
 `write_csv` / `write_excel`.
 
+Families can also be reshaped, all lazily:
+
+```python
+gain.reduce("min", over="temp")      # worst case over temperature: a family over dut x freq
+gain.ymax(axis="temp")               # the same with an axis argument (axis=-1, the sweep, is per curve)
+gain.reorder(["dut", "freq", "temp"])  # curves over temperature, one per dut and frequency
+for dut, g in gain.along("dut"):     # iterate over one group column
+    print(dut, g.bandwidth())
+gain[-1]                             # last sample of every curve (a number for a single curve)
+gain[10:20]                          # a slice of every curve
+```
+
+## From numpy arrays
+
+`Waveform.from_arrays` takes one array per sweep axis and an n-dimensional `y` (the last axis is
+the sweep, the others become groups), or ragged object arrays; `to_arrays()` converts back:
+
+```python
+w = pw.Waveform.from_arrays([temps, freqs], gain_2d, xlabels=["temp", "freq"], ylabel="gain")
+xs, y = w.to_arrays()
+```
+
+numpy functions keep waveforms as waveforms: `np.abs(w)`, `np.log10(w)`, `array + w`.
+
 ## Nested channels
 
 Measurement tables often keep one row per operating point and store each *channel*, a curve
@@ -64,6 +88,20 @@ pn.value(1e6)                                    # phase noise at 1 MHz offset, 
 
 Both nested shapes work: a struct of lists (`{x: [..], y: [..]}`) and a list of structs.
 
+## Plotting
+
+```sh
+pip install "polars-waveform[matplotlib]"    # or [altair] for interactive charts
+```
+
+```python
+w.plot()                         # matplotlib: one line per curve, labelled with its group values
+w.semilogx(), w.loglog(), w.stem()
+h.bode()                         # magnitude and phase of a complex response
+w.plot(backend="altair")         # interactive chart (notebooks); pw.set_plot_backend("altair")
+pw.compression_plot(gain_db)     # response, extrapolated line and the compression point
+```
+
 ## Measurements
 
 The semantics follow OCEAN, and the OCEAN and pycircuit names are aliases (`pw.dB20`,
@@ -76,11 +114,20 @@ The semantics follow OCEAN, and the OCEAN and pycircuit names are aliases (`pw.d
 | transient | `rise_time()`, `fall_time()`, `slew_rate()`, `overshoot()`, `settling_time()` |
 | frequency | `bandwidth(db, "low"/"high"/"band")`, `unity_gain_frequency()`, `phase_margin()`, `gain_margin()` |
 | shape | `deriv()`, `integ(xfrom, xto)`, `iinteg()`, `clip(xfrom, xto)`, `dft()`, `leaf(**groups)` |
+| families | `reduce(how, over)`, `ymax(axis=...)` and friends, `reorder()`, `swapaxes()`, `along()`, `dimension_first()`, `leaf()`, `w[i]`, `w[a:b]` |
 | math | `+ - * /`, `**`, `10 ** w`, `abs()`/`mag()`, `db10()`, `db20()`, `phase()`, `real()`, `imag()`, `conj()`, `log10()`, `exp()`, `sqrt()` |
 | RF | `pw.im2`, `pw.im3`, `pw.iip2`, `pw.iip3`, `pw.compression_point` |
 
-Complex data is a `Struct{re, im}` column; arithmetic and `db20()`/`phase()` handle it, and
+The elementwise functions (`pw.db20`, `pw.phase`, `pw.mag`, ...) also take plain numbers and
+numpy arrays. Complex data is a `Struct{re, im}` column; arithmetic and `db20()`/`phase()` handle it, and
 `pl.col("h").cx.db20()` (registered by `polars_waveform.cx`) does the same in plain Polars.
+
+## Other waveform kinds
+
+`pw.WaveformBase` is the contract every waveform kind implements: names, units, `from_arrays` /
+`to_arrays`, arithmetic and the elementwise functions. Polars cannot compute with Python objects,
+so a symbolic waveform (sympy expressions) keeps them in numpy object arrays instead; its
+measurements and plots run on `numeric()`, a numeric `Waveform`.
 
 ## Result sources
 

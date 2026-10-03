@@ -23,7 +23,7 @@ _NUMERIC = (
     "value", "ymax", "ymin", "xmax", "xmin", "argmax", "argmin", "average", "mean", "rms", "stddev",
     "cross", "frequency", "period", "rise_time", "fall_time", "slew_rate", "overshoot", "settling_time",
     "bandwidth", "unity_gain_frequency", "phase_margin", "gain_margin", "integ", "iinteg", "deriv",
-    "clip", "dft", "to_polars", "plot",
+    "clip", "dft", "to_polars", "plot", "semilogx", "semilogy", "loglog", "stem", "bode",
 )  # fmt: skip
 
 

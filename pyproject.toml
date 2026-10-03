@@ -22,9 +22,12 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-# Waveform.to_numpy and dft()
+# Waveform.to_numpy, from_arrays/to_arrays and dft()
 numpy = ["numpy"]
-test = ["pytest", "numpy"]
+# plotting backends (imported only when plotting)
+matplotlib = ["matplotlib", "numpy"]
+altair = ["altair>=5.4"]
+test = ["pytest", "numpy", "matplotlib"]
 
 [project.urls]
 Repository = "https://github.com/henjo/polars-waveform"

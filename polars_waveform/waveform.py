@@ -370,31 +370,46 @@ class Waveform(WaveformBase):
         return f"Waveform({index} -> {self.yname}{unit}, {len(self)} points{kind})"
 
     # plotting -----------------------------------------------------------------------------
-    def plot(self, mark: str = "line", **encode):
-        """Altair chart of the backing frame, via Polars' ``DataFrame.plot``.
+    def plot(self, backend: str | None = None, ax=None, **kwargs):
+        """Plot the waveform, one line per curve (see :mod:`polars_waveform.plot`).
 
-        Needs ``polars[plot]`` (``altair>=5.4``). ``mark`` is any Altair mark (``"line"``,
-        ``"point"``/``"scatter"``, ``"area"``, ...) and the keywords are Altair encode channels;
-        ``x`` and ``y`` default to the sampling axis and the value, and group columns can be
-        encoded too::
-
-            w.plot()                                        # time -> out
-            w.plot(color="iteration")                       # one line per Monte Carlo iteration
-            w.db20().plot(x="freq", tooltip=["freq", w.yname])
-
-        Struct-valued waveforms (complex included) cannot be plotted directly; reduce them first
-        with :meth:`abs`, :meth:`db20`, :meth:`phase`, :meth:`real` or :meth:`imag`.
-
-        ``x``/``y`` default to explicit Altair field specs, so names containing ``:`` (e.g.
-        ``I1:d``) are not misparsed as Altair shorthand.
+        matplotlib (the default) returns an ``Axes``; ``ax`` draws into existing axes.
+        ``backend="altair"`` returns an Altair chart; keywords are then ``mark`` and Altair
+        encode channels, e.g. ``w.plot(backend="altair", color="temp")``.
         """
-        if self.is_complex:
-            raise ValueError(
-                "cannot plot a struct-valued waveform; use abs(), db20(), phase(), real() or imag()"
-            )
-        encode.setdefault("x", {"field": self.xname, "type": "quantitative"})
-        encode.setdefault("y", {"field": self.yname, "type": "quantitative"})
-        return getattr(self.to_polars().plot, mark)(**encode)
+        from .plot import plot
+
+        return plot(self, backend, ax, **kwargs)
+
+    def semilogx(self, ax=None, **kwargs):
+        """matplotlib plot with a logarithmic x axis."""
+        from .plot import plot
+
+        return plot(self, "matplotlib", ax, logx=True, **kwargs)
+
+    def semilogy(self, ax=None, **kwargs):
+        """matplotlib plot with a logarithmic y axis."""
+        from .plot import plot
+
+        return plot(self, "matplotlib", ax, logy=True, **kwargs)
+
+    def loglog(self, ax=None, **kwargs):
+        """matplotlib plot with logarithmic x and y axes."""
+        from .plot import plot
+
+        return plot(self, "matplotlib", ax, logx=True, logy=True, **kwargs)
+
+    def stem(self, ax=None, **kwargs):
+        """matplotlib stem plot (e.g. spectra from :meth:`dft`)."""
+        from .plot import plot
+
+        return plot(self, "matplotlib", ax, stem=True, **kwargs)
+
+    def bode(self, axes=None, deg: bool = True):
+        """Magnitude and phase over a log frequency axis; returns ``(fig, (ax_mag, ax_phase))``."""
+        from .plot import bode
+
+        return bode(self, axes, deg)
 
     # internals ----------------------------------------------------------------------------
     def _parts_expr(self):
@@ -649,13 +664,21 @@ class Waveform(WaveformBase):
         if self._complex:
             raise TypeError(f"{what} needs a real waveform; use abs(w) or real(w)")
 
-    def ymax(self):
-        self._real_only("ymax()")
-        return self._agg(pl.col(self._value).max(), "ymax")
+    def _over_axis(self, axis, how: str, measure):
+        """``measure()`` along the sweep (the default), or :meth:`reduce` over another axis."""
+        col = self.getaxis(axis)
+        return measure() if col == self._sample else self.reduce(how, over=col)
 
-    def ymin(self):
+    def ymax(self, axis=-1):
+        """Largest y per curve; with ``axis`` naming a group column (or its position in
+        :attr:`index`), the maximum over that column instead (see :meth:`reduce`)."""
+        self._real_only("ymax()")
+        return self._over_axis(axis, "max", lambda: self._agg(pl.col(self._value).max(), "ymax"))
+
+    def ymin(self, axis=-1):
+        """Smallest y per curve, or over the group column ``axis`` (see :meth:`ymax`)."""
         self._real_only("ymin()")
-        return self._agg(pl.col(self._value).min(), "ymin")
+        return self._over_axis(axis, "min", lambda: self._agg(pl.col(self._value).min(), "ymin"))
 
     def xmax(self):
         """x where y is largest (OCEAN ``xmax``; the largest x is ``w.x.max()``)."""
@@ -670,23 +693,38 @@ class Waveform(WaveformBase):
     argmax = xmax
     argmin = xmin
 
-    def average(self):
-        if self._complex:
-            re, im = self._parts_expr()
-            return self._agg(pl.struct(re.mean().alias("re"), im.mean().alias("im")), "average")
-        return self._agg(pl.col(self._value).mean(), "average")
+    def average(self, axis=-1):
+        """Mean y per curve, or over the group column ``axis`` (see :meth:`ymax`)."""
 
-    def rms(self):
-        re, im = self._parts_expr()
-        sq = re * re + im * im if im is not None else re * re
-        return self._agg(sq.mean().sqrt(), "rms")
+        def per_curve():
+            if self._complex:
+                re, im = self._parts_expr()
+                return self._agg(pl.struct(re.mean().alias("re"), im.mean().alias("im")), "average")
+            return self._agg(pl.col(self._value).mean(), "average")
+
+        return self._over_axis(axis, "mean", per_curve)
+
+    def rms(self, axis=-1):
+        """Root mean square per curve, or over the group column ``axis``."""
+
+        def per_curve():
+            re, im = self._parts_expr()
+            sq = re * re + im * im if im is not None else re * re
+            return self._agg(sq.mean().sqrt(), "rms")
+
+        return self._over_axis(axis, "rms", per_curve)
 
     mean = average
 
-    def stddev(self):
-        re, im = self._parts_expr()
-        var = re.var(ddof=0) + im.var(ddof=0) if im is not None else re.var(ddof=0)
-        return self._agg(var.sqrt(), "stddev")
+    def stddev(self, axis=-1):
+        """Standard deviation (population) per curve, or over the group column ``axis``."""
+
+        def per_curve():
+            re, im = self._parts_expr()
+            var = re.var(ddof=0) + im.var(ddof=0) if im is not None else re.var(ddof=0)
+            return self._agg(var.sqrt(), "stddev")
+
+        return self._over_axis(axis, "std", per_curve)
 
     # sampling -----------------------------------------------------------------------------
     def _resample(self, xs: pl.Series) -> pl.Series:
@@ -1038,6 +1076,137 @@ class Waveform(WaveformBase):
         return x1 if z1 == z0 else x0 - z0 * (x1 - x0) / (z1 - z0)
 
     # families -------------------------------------------------------------------------------
+    def getaxis(self, axis) -> str:
+        """The index column for ``axis``: a column name, or a position in :attr:`index`
+        (``-1`` is the last index column, normally the sweep)."""
+        if isinstance(axis, str):
+            if axis not in self._index:
+                raise KeyError(f"no index column {axis!r}; index is {self._index}")
+            return axis
+        return self._index[axis]
+
+    def reduce(self, how, over) -> Waveform:
+        """Reduce over one or more group columns, e.g. the worst case over temperature at every
+        frequency::
+
+            w.reduce("max", over="temp")          # index [temp, rval, freq] -> [rval, freq]
+
+        ``how`` is ``"max"``, ``"min"``, ``"mean"``, ``"sum"``, ``"std"``, ``"rms"``,
+        ``"median"`` or a function ``expr -> expr`` (e.g. ``lambda e: e.quantile(0.9)``). The
+        result is a Waveform over the remaining index columns, computed lazily. Reducing over the
+        sweep is a per-curve measurement: use :meth:`ymax`, :meth:`average`, ...
+        """
+        cols = [self.getaxis(o) for o in ([over] if isinstance(over, (str, int)) else over)]
+        if self._sample in cols:
+            raise ValueError("reducing over the sweep is a per-curve measurement: use ymax(), average(), ...")
+        keep = [c for c in self._index if c not in cols]
+        name = self._value if callable(how) else f"{how}({self._value})"
+
+        def red(e: pl.Expr) -> pl.Expr:
+            if callable(how):
+                return how(e)
+            fns = {
+                "max": pl.Expr.max, "min": pl.Expr.min, "mean": pl.Expr.mean, "sum": pl.Expr.sum,
+                "median": pl.Expr.median, "std": lambda e: e.std(ddof=0),
+                "rms": lambda e: (e * e).mean().sqrt(),
+            }  # fmt: skip
+            if how not in fns:
+                raise ValueError(f"unknown reduction {how!r}; use one of {sorted(fns)} or a function")
+            return fns[how](e)
+
+        if self._complex:
+            if how not in ("mean", "sum") and not callable(how):
+                raise TypeError(f"reduce({how!r}) needs a real waveform; use abs(w) or real(w)")
+            re, im = self._parts_expr()
+            agg = cx.complex(red(re), red(im))
+        else:
+            agg = red(pl.col(self._value))
+        lf = self._lf.group_by(keep, maintain_order=True).agg(agg.alias(name)).sort(keep)
+        units = {k: v for k, v in self._units.items() if k in keep}
+        if self.yunit is not None:
+            units[name] = self.yunit
+        return Waveform(lf, name, index=keep, sample=self._sample, units=units)
+
+    def reorder(self, index: list[str]) -> Waveform:
+        """The same data with the index columns in another order; the last one becomes the
+        sweep. ``w.reorder(["freq", "temp"])`` gives curves over temperature, one per frequency."""
+        if sorted(index) != sorted(self._index):
+            raise ValueError(f"{index} is not a reordering of {self._index}")
+        lf = self._lf.select(*index, self._value).sort(index)
+        return Waveform(lf, self._value, index=list(index), sample=index[-1], units=self._units)
+
+    def swapaxes(self, axis1, axis2) -> Waveform:
+        """Swap two index columns (pycircuit ``swapaxes``): see :meth:`reorder`."""
+        a, b = self.getaxis(axis1), self.getaxis(axis2)
+        order = [b if c == a else a if c == b else c for c in self._index]
+        return self.reorder(order)
+
+    def along(self, column):
+        """``(value, Waveform)`` for each value of the group column ``column``, with that column
+        removed (pycircuit ``axesiterator``)::
+
+            for temp, w_t in w.along("temp"):
+                print(temp, w_t.bandwidth())
+        """
+        col = self.getaxis(column)
+        if col == self._sample:
+            raise ValueError("along() iterates over a group column, not the sweep")
+        index = [c for c in self._index if c != col]
+        for key, part in self._frame().partition_by(col, maintain_order=True, as_dict=True).items():
+            yield key[0], Waveform(part.drop(col), self._value, index=index, sample=self._sample, units=self._units)
+
+    axesiterator = along
+
+    def dimension_first(self, columns) -> Waveform:
+        """Keep only the first value of each group column in ``columns`` and drop those columns
+        (pycircuit ``reducedimension``)."""
+        cols = [self.getaxis(c) for c in ([columns] if isinstance(columns, (str, int)) else columns)]
+        if self._sample in cols:
+            raise ValueError("cannot drop the sweep")
+        first = pl.all_horizontal([pl.col(c) == pl.col(c).first() for c in cols])
+        index = [c for c in self._index if c not in cols]
+        lf = self._lf.filter(first).select(*index, self._value)
+        return Waveform(lf, self._value, index=index, sample=self._sample, units=self._units)
+
+    reducedimension = dimension_first
+
+    # positional access: w[-1] (one sample per curve), w[a:b] (a slice of every curve) ----------
+    def __getitem__(self, key):
+        g = self.groups
+        pos = pl.int_range(pl.len()).over(g) if g else pl.int_range(pl.len())
+        n = pl.len().over(g) if g else pl.len()
+        lf = self._lf.with_columns(_pos=pos, _n=n)
+        if isinstance(key, int) and not isinstance(key, bool):
+            at = pl.lit(key) if key >= 0 else pl.col("_n") + key
+            df = lf.filter(pl.col("_pos") == at).drop("_pos", "_n").collect()
+            if not g:
+                if df.height == 0:
+                    raise IndexError(f"index {key} out of range for {len(self)} samples")
+                return _to_complex(df[self._value][0])
+            out = df.select(*g, self._value)
+            return _to_complex(out[self._value][0]) if out.height == 1 else out
+        if isinstance(key, slice):
+            if key.step is not None and key.step < 1:
+                raise NotImplementedError("slices with a negative or zero step")
+
+            def bound(v, default):
+                if v is None:
+                    return default
+                return pl.lit(v) if v >= 0 else pl.col("_n") + v
+
+            start, stop = bound(key.start, pl.lit(0)), bound(key.stop, pl.col("_n"))
+            keep = (pl.col("_pos") >= start) & (pl.col("_pos") < stop)
+            if key.step not in (None, 1):
+                keep &= ((pl.col("_pos") - start) % key.step) == 0
+            out = lf.filter(keep).drop("_pos", "_n")
+            return Waveform(out, self._value, index=self._index, sample=self._sample, units=self._units)
+        raise TypeError(f"waveform indices are int or slice, not {type(key).__name__}")
+
+    def __iter__(self):
+        if self.groups:
+            raise TypeError("a family is not iterable; use w.along(group) or w.to_polars()")
+        return iter(self.y.to_list())
+
     def leaf(self, **values) -> Waveform:
         """The curves at the given group values, with those group columns dropped (OCEAN
         ``leafValue``)::

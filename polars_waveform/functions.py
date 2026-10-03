@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import math
 
+from .base import WaveformBase
+from .plot import compression_plot, set_plot_backend
 from .waveform import Waveform
 
 __all__ = [
@@ -24,7 +26,8 @@ __all__ = [
     "cross", "deriv", "integ", "iinteg", "clip", "dft", "leaf_value", "log10", "exp", "sqrt",
     "bandwidth", "unity_gain_frequency", "phase_margin", "gain_margin",
     "rise_time", "fall_time", "slew_rate", "overshoot", "settling_time", "delay", "frequency", "period",
-    "im2", "im3", "iip2", "iip3", "calc_extrapolation_line", "compression_point",
+    "im2", "im3", "iip2", "iip3", "calc_extrapolation_line", "compression_point", "compression_plot",
+    "set_plot_backend",
     # OCEAN aliases
     "dB10", "dB20", "phaseDeg", "phaseRad", "leafValue", "unityGainFreq", "phaseMargin", "gainMargin",
     "riseTime", "fallTime", "slewRate", "settlingTime",
@@ -33,53 +36,100 @@ __all__ = [
 ]
 
 
-# --- elementwise -----------------------------------------------------------------------------
-def db20(w: Waveform) -> Waveform:
+# --- elementwise: also on plain numbers and numpy arrays --------------------------------------
+def _num(w):
+    """True if ``w`` is a plain number or array (not a waveform)."""
+    return not isinstance(w, WaveformBase)
+
+
+def db20(w):
+    """``20*log10(|w|)``; works on waveforms, numbers and numpy arrays."""
+    if _num(w):
+        import numpy as np
+
+        return 20.0 * np.log10(np.abs(w))
     return w.db20()
 
 
-def db10(w: Waveform) -> Waveform:
+def db10(w):
+    """``10*log10(|w|)``, for power quantities."""
+    if _num(w):
+        import numpy as np
+
+        return 10.0 * np.log10(np.abs(w))
     return w.db10()
 
 
-def mag(w: Waveform) -> Waveform:
+def mag(w):
+    if _num(w):
+        import numpy as np
+
+        return np.abs(w)
     return w.mag()
 
 
-def phase(w: Waveform) -> Waveform:
-    """Phase in degrees (OCEAN ``phase``)."""
-    return w.phase()
+def phase(w, deg: bool = True):
+    """Phase in degrees (radians with ``deg=False``)."""
+    if _num(w):
+        import numpy as np
+
+        return np.angle(w, deg=deg)
+    return w.phase(deg)
 
 
-def phase_deg(w: Waveform) -> Waveform:
-    return w.phase(deg=True)
+def phase_deg(w):
+    return phase(w, deg=True)
 
 
-def phase_rad(w: Waveform) -> Waveform:
-    return w.phase(deg=False)
+def phase_rad(w):
+    return phase(w, deg=False)
 
 
-def real(w: Waveform) -> Waveform:
+def real(w):
+    if _num(w):
+        import numpy as np
+
+        return np.real(w)
     return w.real()
 
 
-def imag(w: Waveform) -> Waveform:
+def imag(w):
+    if _num(w):
+        import numpy as np
+
+        return np.imag(w)
     return w.imag()
 
 
-def conjugate(w: Waveform) -> Waveform:
+def conjugate(w):
+    if _num(w):
+        import numpy as np
+
+        return np.conjugate(w)
     return w.conj()
 
 
-def log10(w: Waveform) -> Waveform:
+def log10(w):
+    if _num(w):
+        import numpy as np
+
+        return np.log10(w)
     return w.log10()
 
 
-def exp(w: Waveform) -> Waveform:
+def exp(w):
+    if _num(w):
+        import numpy as np
+
+        return np.exp(w)
     return w.exp()
 
 
-def sqrt(w: Waveform) -> Waveform:
+def sqrt(w):
+    if _num(w):
+        import numpy as np
+
+        return np.sqrt(w)
     return w.sqrt()
 
 
