@@ -159,12 +159,12 @@ def value(w: Waveform, x):
     return w.value(x)
 
 
-def ymax(w: Waveform):
-    return w.ymax()
+def ymax(w: Waveform, axis=-1):
+    return w.ymax(axis)
 
 
-def ymin(w: Waveform):
-    return w.ymin()
+def ymin(w: Waveform, axis=-1):
+    return w.ymin(axis)
 
 
 def xmax(w: Waveform):
@@ -177,16 +177,16 @@ def xmin(w: Waveform):
     return w.xmin()
 
 
-def average(w: Waveform):
-    return w.average()
+def average(w: Waveform, axis=-1):
+    return w.average(axis)
 
 
-def rms(w: Waveform):
-    return w.rms()
+def rms(w: Waveform, axis=-1):
+    return w.rms(axis)
 
 
-def stddev(w: Waveform):
-    return w.stddev()
+def stddev(w: Waveform, axis=-1):
+    return w.stddev(axis)
 
 
 def integ(w: Waveform, xfrom: float | None = None, xto: float | None = None):

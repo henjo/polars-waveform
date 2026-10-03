@@ -501,6 +501,8 @@ class Waveform(WaveformBase):
         index columns are read to check that)."""
         base = self._lf.select(self._index + [self._value])
         other = _from_numpy(other)
+        if isinstance(other, WaveformBase) and not isinstance(other, Waveform):
+            other = other.numeric()  # another kind, e.g. symbolic: as numbers
         if isinstance(other, Waveform):
             self._check_x(other)
             base = pl.concat([base, other._lf.select(pl.col(other._value).alias(_RHS))], how="horizontal", strict=True)
