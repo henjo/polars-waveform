@@ -6,7 +6,7 @@ import math
 
 import polars as pl
 
-from .. import cx
+from . import cx
 
 __all__ = ["Waveform", "either", "falling", "raising"]
 
@@ -438,6 +438,30 @@ class Waveform:
         if not self._complex:
             return self._derived(pl.col(self._value) ** other, yname=name, yunit=None)
         return self._derived(cx.pow(self._value, float(other)), yname=name, yunit=None)
+
+    def __rpow__(self, base):
+        """``base ** w`` for a real base, e.g. ``10 ** (w / 10)`` to undo dB10."""
+        if self._complex:
+            raise NotImplementedError("base ** complex waveform is not supported")
+        return self._derived(float(base) ** pl.col(self._value), yname=f"{base} ** {self.yname}", yunit=None)
+
+    def _real_math(self, what: str, fn) -> Waveform:
+        if self._complex:
+            raise TypeError(f"{what}() needs a real waveform; use abs(w) or real(w)")
+        return self._derived(fn(pl.col(self._value)), yname=f"{what}({self.yname})", yunit=None)
+
+    def log10(self) -> Waveform:
+        return self._real_math("log10", lambda e: e.log10())
+
+    def log(self) -> Waveform:
+        """Natural logarithm."""
+        return self._real_math("log", lambda e: e.log())
+
+    def exp(self) -> Waveform:
+        return self._real_math("exp", lambda e: e.exp())
+
+    def sqrt(self) -> Waveform:
+        return self._real_math("sqrt", lambda e: e.sqrt())
 
     def __abs__(self):
         return self._derived(self._mag_expr(), yname=f"abs({self.yname})", yunit=None)

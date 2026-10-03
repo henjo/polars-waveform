@@ -18,12 +18,10 @@ import math
 from .waveform import Waveform
 
 __all__ = [
-    # results
-    "wave", "waves",
     # calculator functions
     "db10", "db20", "mag", "phase", "phase_deg", "phase_rad", "real", "imag", "conjugate",
     "value", "ymax", "ymin", "xmax", "xmin", "average", "rms", "stddev",
-    "cross", "deriv", "integ", "iinteg", "clip", "dft", "leaf_value",
+    "cross", "deriv", "integ", "iinteg", "clip", "dft", "leaf_value", "log10", "exp", "sqrt",
     "bandwidth", "unity_gain_frequency", "phase_margin", "gain_margin",
     "rise_time", "fall_time", "slew_rate", "overshoot", "settling_time", "delay", "frequency", "period",
     "im2", "im3", "iip2", "iip3", "calc_extrapolation_line", "compression_point",
@@ -33,22 +31,6 @@ __all__ = [
     # pycircuit aliases
     "unityGainFrequency", "IM2", "IM3", "IIP2", "IIP3",
 ]
-
-
-def wave(source, name: str, result: str | None = None, **params) -> Waveform:
-    """One signal as a lazy :class:`Waveform`; ``source`` is a path or :class:`Dataset`."""
-    return _dataset(source).wave(name, result, **params)
-
-
-def waves(source, names=None, result: str | None = None, **params) -> dict:
-    """``{name: Waveform}`` for several signals (decoded together on first access)."""
-    return _dataset(source).waves(names, result, **params)
-
-
-def _dataset(source):
-    from ..dataset import Dataset
-
-    return source if isinstance(source, Dataset) else Dataset(source)
 
 
 # --- elementwise -----------------------------------------------------------------------------
@@ -87,6 +69,18 @@ def imag(w: Waveform) -> Waveform:
 
 def conjugate(w: Waveform) -> Waveform:
     return w.conj()
+
+
+def log10(w: Waveform) -> Waveform:
+    return w.log10()
+
+
+def exp(w: Waveform) -> Waveform:
+    return w.exp()
+
+
+def sqrt(w: Waveform) -> Waveform:
+    return w.sqrt()
 
 
 def deriv(w: Waveform) -> Waveform:

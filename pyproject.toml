@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "polars-waveform"
+version = "0.1.0"
+description = "Waveforms and curve families on Polars, with circuit-style measurements (bandwidth, cross, rise time, ...)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = ["polars>=1.40"]  # io plugins, concat(strict=), explode(empty_as_null=); tested 1.40-1.44
+classifiers = ["Programming Language :: Python :: 3", "Topic :: Scientific/Engineering"]
+
+[project.optional-dependencies]
+# Waveform.to_numpy and dft()
+numpy = ["numpy"]
+test = ["pytest", "numpy"]
+
+[project.urls]
+Repository = "https://git.johome.net/proj/polars-psf"
+
+[tool.hatch.build.targets.wheel]
+packages = ["polars_waveform"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "RUF"]
+# Ω, × and − in docs are intended; __all__ follows the docs order
+ignore = ["RUF001", "RUF002", "RUF003", "RUF005", "RUF022"]
