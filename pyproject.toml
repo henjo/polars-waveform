@@ -27,7 +27,9 @@ numpy = ["numpy"]
 # plotting backends (imported only when plotting)
 matplotlib = ["matplotlib", "numpy"]
 altair = ["altair>=5.4"]
-test = ["pytest", "numpy", "matplotlib"]
+# PandasWaveform: values Polars cannot compute with (sympy expressions, ...)
+pandas = ["pandas>=2.2", "numpy"]
+test = ["pytest", "numpy", "matplotlib", "pandas>=2.2", "sympy"]
 
 [project.urls]
 Repository = "https://github.com/henjo/polars-waveform"

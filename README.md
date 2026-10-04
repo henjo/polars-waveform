@@ -122,12 +122,28 @@ The elementwise functions (`pw.db20`, `pw.phase`, `pw.mag`, ...) also take plain
 numpy arrays. Complex data is a `Struct{re, im}` column; arithmetic and `db20()`/`phase()` handle it, and
 `pl.col("h").cx.db20()` (registered by `polars_waveform.cx`) does the same in plain Polars.
 
-## Other waveform kinds
+## Symbolic waveforms
 
-`pw.WaveformBase` is the contract every waveform kind implements: names, units, `from_arrays` /
-`to_arrays`, arithmetic and the elementwise functions. Polars cannot compute with Python objects,
-so a symbolic waveform (sympy expressions) keeps them in numpy object arrays instead; its
-measurements and plots run on `numeric()`, a numeric `Waveform`.
+Polars can store Python objects but cannot compute with them. `pw.PandasWaveform` holds such
+values, for example sympy expressions from a symbolic circuit analysis, in the same layout
+(groups, sweep, value) on a pandas Series, which applies Python operators element by element.
+`pw.from_arrays` picks the kind the values need:
+
+```python
+import sympy
+R, C = sympy.symbols("R C", positive=True)
+
+h = pw.from_arrays(freqs, [1 / (1 + 2j * sympy.pi * f * R * C) for f in freqs],
+                   xlabels=["freq"], ylabel="H", xunits=["Hz"])
+h.db20()                                    # still symbolic
+h.map(sympy.simplify)                       # any function, value by value
+h.subs({R: 1e3, C: 1e-9}).bandwidth()       # numbers: measured on numeric()
+```
+
+Measurements and plots run on `numeric()`, the equivalent `Waveform`; it names the free symbols
+while some are left. Needs `pip install "polars-waveform[pandas]"`. Both kinds implement
+`pw.WaveformBase`, the contract for waveform kinds: names, units, `from_arrays` / `to_arrays`,
+arithmetic and the elementwise functions.
 
 ## Result sources
 

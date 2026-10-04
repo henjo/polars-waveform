@@ -19,10 +19,11 @@ Complex data is ``Struct{re, im}``; :mod:`.cx` registers ``pl.col(...).cx`` for 
 :func:`from_nested` builds families from nested channel columns, :meth:`Waveform.from_arrays`
 from numpy grids, and :class:`ResultSource` is the shape shared by result objects
 (``polars_psf.Result`` implements it). :class:`WaveformBase` is the contract other waveform
-kinds implement (for example symbolic waveforms on numpy object arrays).
+kinds implement; :class:`PandasWaveform` is one for values Polars cannot compute with (sympy
+expressions, ...), and :func:`from_arrays` picks the kind the values need.
 
 Modules: :mod:`.waveform` (the class), :mod:`.functions` (calculator functions), :mod:`.cx`
-(complex helpers), :mod:`.nested`, :mod:`.source`.
+(complex helpers), :mod:`.nested`, :mod:`.source`, :mod:`.pandas_waveform`.
 """
 
 from importlib.metadata import PackageNotFoundError
@@ -33,10 +34,14 @@ from .base import WaveformBase
 from .functions import *  # noqa: F403
 from .functions import __all__ as _functions
 from .nested import from_nested
+from .pandas_waveform import PandasWaveform, from_arrays
 from .source import ResultSource
 from .waveform import Waveform, either, falling, raising
 
-__all__ = ["ResultSource", "Waveform", "WaveformBase", "cx", "either", "falling", "from_nested", "raising", *_functions]
+__all__ = [
+    "PandasWaveform", "ResultSource", "Waveform", "WaveformBase", "cx", "either", "falling", "from_arrays",
+    "from_nested", "raising", *_functions,
+]  # fmt: skip
 
 try:
     __version__ = _version("polars-waveform")

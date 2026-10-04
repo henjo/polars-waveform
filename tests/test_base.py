@@ -65,7 +65,8 @@ def a():
 
 def test_measurements_run_on_numeric(a):
     assert a.ymax() == 3.0 and a.xmax() == 2.0 and a.cross(0.0) == pytest.approx(0.5)
-    assert pw.functions.ymax(a) == 3.0 and pw.functions.db20(a).y.tolist() == pytest.approx([0, 0, 9.5424, 6.0206], abs=1e-4)
+    assert pw.functions.ymax(a) == 3.0
+    assert pw.functions.db20(a).y.tolist() == pytest.approx([0, 0, 9.5424, 6.0206], abs=1e-4)
 
 
 def test_arithmetic_with_other_kinds(a):
