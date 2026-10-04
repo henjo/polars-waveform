@@ -339,12 +339,14 @@ def _is_number(v) -> bool:
 
 def from_arrays(x, y, xlabels=None, ylabel=None, xunits=None, yunit=None) -> WaveformBase:
     """A waveform from arrays (layout of :meth:`Waveform.from_arrays`), of the kind the values
-    need: a :class:`Waveform` for numbers, a :class:`PandasWaveform` for other objects (sympy
-    expressions, ...)."""
+    need: a :class:`Waveform` for numbers on a real sweep, a :class:`PandasWaveform` for other
+    objects (sympy expressions, ...) or a complex sweep (complex frequency)."""
     import numpy as np
 
     ya = np.asarray(y, dtype=object) if not isinstance(y, np.ndarray) else y
-    numeric = ya.dtype != object or all(_is_number(v) or isinstance(v, np.ndarray) for v in ya.ravel())
+    one_axis = (isinstance(x, np.ndarray) and x.dtype != object) or all(np.ndim(xi) == 0 for xi in x)
+    real_x = all(np.isrealobj(np.asarray(xi)) and np.asarray(xi).dtype != object for xi in ([x] if one_axis else x))
+    numeric = real_x and (ya.dtype != object or all(_is_number(v) or isinstance(v, np.ndarray) for v in ya.ravel()))
     if numeric:
         if ya.dtype == object and not any(isinstance(v, np.ndarray) for v in ya.ravel()):
             ya = ya.astype(complex if any(isinstance(v, complex) for v in ya.ravel()) else float)

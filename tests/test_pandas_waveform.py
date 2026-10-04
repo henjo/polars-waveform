@@ -22,6 +22,8 @@ def test_from_arrays_picks_the_kind():
     assert isinstance(rc(), pw.PandasWaveform)
     assert isinstance(pw.from_arrays(FREQS, np.ones(len(FREQS))), pw.Waveform)
     assert isinstance(pw.from_arrays([1.0, 2.0], [1, 2.5 + 1j]), pw.Waveform)  # Python numbers
+    s = pw.from_arrays(np.array([1j, 2j]), [1.0, 2.0], xlabels=["s"])  # complex sweep: Polars cannot index it
+    assert isinstance(s, pw.PandasWaveform) and s.value(2j) == 2.0
     w = rc()
     assert w.index == ["freq"] and w.xname == "freq" and w.yname == "H" and w.xunit == "Hz" and w.yunit == "V"
     assert len(w) == 81 and "PandasWaveform(freq -> H" in repr(w)
